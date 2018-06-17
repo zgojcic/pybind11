@@ -242,7 +242,9 @@ handle eigen_ref_array(Type &src, handle parent = none()) {
 // not the Type of the pointer given is const.
 template <typename props, typename Type, typename = enable_if_t<is_eigen_dense_plain<Type>::value>>
 handle eigen_encapsulate(Type *src) {
-    capsule base(src, [](void *o) { delete static_cast<Type *>(o); });
+    capsule base(src, [](void *o) {
+      delete static_cast<Type *>(o);
+    });
     return eigen_ref_array<props>(*src, base);
 }
 
@@ -544,64 +546,62 @@ public:
 
 template<typename Type>
 struct type_caster<Type, enable_if_t<is_eigen_sparse<Type>::value>> {
-    using Scalar = typename Type::Scalar;
-    using StorageIndex = remove_reference_t<decltype(*std::declval<Type>().outerIndexPtr())>;
-    using Index = typename Type::Index;
-    static constexpr bool rowMajor = Type::IsRowMajor;
+   typedef typename Type::Scalar Scalar;
+   typedef remove_reference_t<decltype(*std::declval<Type>().outerIndexPtr())> StorageIndex;
+   typedef typename Type::Index Index;
+   static constexpr bool rowMajor = Type::IsRowMajor;
 
-    bool load(handle src, bool) {
-        if (!src)
-            return false;
+   bool load(handle src, bool) {
+       if (!src)
+           return false;
 
-        auto obj = reinterpret_borrow<object>(src);
-        object sparse_module = module_::import("scipy.sparse");
-        object matrix_type = sparse_module.attr(
-            rowMajor ? "csr_matrix" : "csc_matrix");
+       auto obj = reinterpret_borrow<object>(src);
+       object sparse_module = module::import("scipy.sparse");
+       object matrix_type = sparse_module.attr(
+           rowMajor ? "csr_matrix" : "csc_matrix");
 
-        if (!type::handle_of(obj).is(matrix_type)) {
-            try {
-                obj = matrix_type(obj);
-            } catch (const error_already_set &) {
-                return false;
-            }
-        }
+       if (!obj.get_type().is(matrix_type)) {
+           try {
+               obj = matrix_type(obj);
+           } catch (const error_already_set &) {
+               return false;
+           }
+       }
 
-        auto values = array_t<Scalar>((object) obj.attr("data"));
-        auto innerIndices = array_t<StorageIndex>((object) obj.attr("indices"));
-        auto outerIndices = array_t<StorageIndex>((object) obj.attr("indptr"));
-        auto shape = pybind11::tuple((pybind11::object) obj.attr("shape"));
-        auto nnz = obj.attr("nnz").cast<Index>();
+       auto values = array_t<Scalar>((object) obj.attr("data"));
+       auto innerIndices = array_t<StorageIndex>((object) obj.attr("indices"));
+       auto outerIndices = array_t<StorageIndex>((object) obj.attr("indptr"));
+       auto shape = pybind11::tuple((pybind11::object) obj.attr("shape"));
+       auto nnz = obj.attr("nnz").cast<Index>();
 
-        if (!values || !innerIndices || !outerIndices)
-            return false;
+       if (!values || !innerIndices || !outerIndices)
+           return false;
 
-        value = EigenMapSparseMatrix<Scalar,
-                                     Type::Flags & (Eigen::RowMajor | Eigen::ColMajor),
-                                     StorageIndex>(
-            shape[0].cast<Index>(), shape[1].cast<Index>(), nnz,
-            outerIndices.mutable_data(), innerIndices.mutable_data(), values.mutable_data());
+       value = Eigen::MappedSparseMatrix<Scalar, Type::Flags, StorageIndex>(
+           shape[0].cast<Index>(), shape[1].cast<Index>(), nnz,
+           outerIndices.mutable_data(), innerIndices.mutable_data(), values.mutable_data());
 
-        return true;
-    }
+       return true;
+   }
 
-    static handle cast(const Type &src, return_value_policy /* policy */, handle /* parent */) {
-        const_cast<Type&>(src).makeCompressed();
+   static handle cast(const Type &src, return_value_policy /* policy */, handle /* parent */) {
+       const_cast<Type&>(src).makeCompressed();
 
-        object matrix_type = module_::import("scipy.sparse").attr(
-            rowMajor ? "csr_matrix" : "csc_matrix");
+       object matrix_type = module::import("scipy.sparse").attr(
+           rowMajor ? "csr_matrix" : "csc_matrix");
 
-        array data(src.nonZeros(), src.valuePtr());
-        array outerIndices((rowMajor ? src.rows() : src.cols()) + 1, src.outerIndexPtr());
-        array innerIndices(src.nonZeros(), src.innerIndexPtr());
+       array data(src.nonZeros(), src.valuePtr());
+       array outerIndices((rowMajor ? src.rows() : src.cols()) + 1, src.outerIndexPtr());
+       array innerIndices(src.nonZeros(), src.innerIndexPtr());
 
-        return matrix_type(
-            std::make_tuple(data, innerIndices, outerIndices),
-            std::make_pair(src.rows(), src.cols())
-        ).release();
-    }
+       return matrix_type(
+           std::make_tuple(data, innerIndices, outerIndices),
+           std::make_pair(src.rows(), src.cols())
+       ).release();
+   }
 
-    PYBIND11_TYPE_CASTER(Type, const_name<(Type::IsRowMajor) != 0>("scipy.sparse.csr_matrix[", "scipy.sparse.csc_matrix[")
-            + npy_format_descriptor<Scalar>::name + const_name("]"));
+   PYBIND11_TYPE_CASTER(Type, _<(Type::IsRowMajor) != 0>("scipy.sparse.csr_matrix[", "scipy.sparse.csc_matrix[")
+           + npy_format_descriptor<Scalar>::name + _("]"));
 };
 
 PYBIND11_NAMESPACE_END(detail)

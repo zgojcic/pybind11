@@ -24,6 +24,14 @@
 #include <utility>
 #include <vector>
 #include <typeindex>
+#include <iostream>
+
+
+#if defined(_MSC_VER)
+#  pragma warning(push)
+#  pragma warning(disable: 4127) // warning C4127: Conditional expression is constant
+typedef SSIZE_T ssize_t;
+#endif
 
 /* This will be true on all flat address space platforms and allows us to reduce the
    whole npy_intp / ssize_t / Py_intptr_t business down to just ssize_t for all size
@@ -526,6 +534,32 @@ public:
         return detail::array_descriptor_proxy(m_ptr)->type;
     }
 
+    /// Return the NumPy array type char
+    char type() const {
+        return detail::array_descriptor_proxy(m_ptr)->type;
+    }
+
+    char byteorder() const {
+        return detail::array_descriptor_proxy(m_ptr)->byteorder;
+    }
+
+    /// Return the NumPy array descr flags
+    int flags() const {
+        return detail::array_descriptor_proxy(m_ptr)->flags;
+    }
+
+    int type_num() const {
+      return detail::array_descriptor_proxy(m_ptr)->type_num;
+    }
+
+    int elsize() const {
+      return detail::array_descriptor_proxy(m_ptr)->elsize;
+    }
+
+    int alignment() const {
+      return detail::array_descriptor_proxy(m_ptr)->alignment;
+    }
+
 private:
     static object _dtype_from_pep3118() {
         static PyObject *obj = module_::import("numpy.core._internal")
@@ -596,12 +630,13 @@ public:
 
         int flags = 0;
         if (base && ptr) {
-            if (isinstance<array>(base))
+            if (isinstance<array>(base)) {
                 /* Copy flags from base (except ownership bit) */
                 flags = reinterpret_borrow<array>(base).flags() & ~detail::npy_api::NPY_ARRAY_OWNDATA_;
-            else
+            } else {
                 /* Writable by default, easy to downgrade later on if needed */
                 flags = detail::npy_api::NPY_ARRAY_WRITEABLE_;
+            }
         }
 
         auto &api = detail::npy_api::get();
@@ -701,6 +736,10 @@ public:
     /// Return the NumPy array flags
     int flags() const {
         return detail::array_proxy(m_ptr)->flags;
+    }
+
+    int& flags() {
+      return detail::array_proxy(m_ptr)->flags;
     }
 
     /// If set, the array is writeable (otherwise the buffer is read-only)
