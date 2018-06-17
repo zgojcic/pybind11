@@ -465,6 +465,31 @@ public:
         return detail::array_descriptor_proxy(m_ptr)->kind;
     }
 
+    /// Return the NumPy array type char
+    char type() const {
+        return detail::array_descriptor_proxy(m_ptr)->type;
+    }
+
+    char byteorder() const {
+        return detail::array_descriptor_proxy(m_ptr)->byteorder;
+    }
+
+    /// Return the NumPy array descr flags
+    int flags() const {
+        return detail::array_descriptor_proxy(m_ptr)->flags;
+    }
+
+    int type_num() const {
+      return detail::array_descriptor_proxy(m_ptr)->type_num;
+    }
+
+    int elsize() const {
+      return detail::array_descriptor_proxy(m_ptr)->elsize;
+    }
+
+    int alignment() const {
+      return detail::array_descriptor_proxy(m_ptr)->alignment;
+    }
 private:
     static object _dtype_from_pep3118() {
         static PyObject *obj = module::import("numpy.core._internal")
