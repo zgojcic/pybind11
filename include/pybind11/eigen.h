@@ -10,6 +10,7 @@
 #pragma once
 
 #include "numpy.h"
+#include <iostream>
 
 #if defined(__INTEL_COMPILER)
 #  pragma warning(disable: 1682) // implicit conversion of a 64-bit integral type to a smaller integral type (potential portability problem)
@@ -242,7 +243,12 @@ handle eigen_ref_array(Type &src, handle parent = none()) {
 // not the Type of the pointer given is const.
 template <typename props, typename Type, typename = enable_if_t<is_eigen_dense_plain<Type>::value>>
 handle eigen_encapsulate(Type *src) {
-    capsule base(src, [](void *o) { delete static_cast<Type *>(o); });
+    capsule base(src, [](void *o) {
+      Type* foo = static_cast<Type *>(o);
+//      std::cerr << "Element [0] = " << (*foo)(0, 0) << "\n";
+//      std::cerr << "freeing memory @ " << o << "\n";
+      delete static_cast<Type *>(o);
+    });
     return eigen_ref_array<props>(*src, base);
 }
 
@@ -298,6 +304,7 @@ private:
             case return_value_policy::automatic:
                 return eigen_encapsulate<props>(src);
             case return_value_policy::move:
+                std::cerr << "Encapsulate move!" << std::endl;
                 return eigen_encapsulate<props>(new CType(std::move(*src)));
             case return_value_policy::copy:
                 return eigen_array_cast<props>(*src);
@@ -315,6 +322,7 @@ public:
 
     // Normal returned non-reference, non-const value:
     static handle cast(Type &&src, return_value_policy /* policy */, handle parent) {
+        std::cerr << "cast with parent " << parent.check() << std::endl;
         return cast_impl(&src, return_value_policy::move, parent);
     }
     // If you return a non-reference const, we mark the numpy array readonly:
