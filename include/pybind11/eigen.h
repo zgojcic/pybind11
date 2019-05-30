@@ -598,7 +598,7 @@ struct type_caster<Type, enable_if_t<is_eigen_sparse<Type>::value>> {
    }
 
    PYBIND11_TYPE_CASTER(Type, _<(Type::IsRowMajor) != 0>("scipy.sparse.csr_matrix[", "scipy.sparse.csc_matrix[")
-           + npy_format_descriptor<Scalar>::name() + _("]"));
+           + npy_format_descriptor<Scalar>::name + _("]"));
 };
 
 NAMESPACE_END(detail)
